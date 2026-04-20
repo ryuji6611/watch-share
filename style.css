@@ -262,10 +262,6 @@ form button {
   opacity: 0.75;
 }
 
-.item.watched h3 {
-  text-decoration: line-through;
-}
-
 .empty-state {
   margin: 12px 0 0;
   color: var(--muted);
