@@ -152,7 +152,8 @@ function render() {
 
   const query = searchInput.value.trim().toLowerCase();
   const filtered = items.filter((item) => {
-    const text = `${item.title} ${item.note}`.toLowerCase();
+    const statusLabel = item.watched ? "視聴済み" : "見たい";
+    const text = `${item.title} ${item.note} ${item.type} ${statusLabel}`.toLowerCase();
     return text.includes(query);
   });
 
