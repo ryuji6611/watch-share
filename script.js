@@ -88,11 +88,11 @@ async function bootstrap() {
     return;
   }
 
-  const supabaseUrl = window.WATCHSHARE_SUPABASE_URL;
-  const supabaseAnonKey = window.WATCHSHARE_SUPABASE_ANON_KEY;
+  const supabaseUrl = normalizeSupabaseUrl(window.WATCHSHARE_SUPABASE_URL);
+  const supabaseAnonKey = String(window.WATCHSHARE_SUPABASE_ANON_KEY || "").trim();
 
   if (!isConfigured(supabaseUrl, supabaseAnonKey)) {
-    setMessage("`supabase-config.js` にURLとAnon Keyを設定してください。", "error");
+    setMessage("`supabase-config.js` のURLまたはAnon Keyの形式が不正です。", "error");
     setUiDisabled();
     return;
   }
@@ -221,7 +221,20 @@ function isConfigured(url, key) {
   if (!url || !key) return false;
   if (url === "YOUR_SUPABASE_URL") return false;
   if (key === "YOUR_SUPABASE_ANON_KEY") return false;
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)) return false;
+  if (url.includes(";")) return false;
+  const isLegacyAnon = key.startsWith("eyJ");
+  const isPublishable = key.startsWith("sb_publishable_");
+  if (!isLegacyAnon && !isPublishable) return false;
   return true;
+}
+
+function normalizeSupabaseUrl(raw) {
+  let url = String(raw || "").trim();
+  url = url.replace(/;+$/g, "");
+  url = url.replace(/\/+$/g, "");
+  url = url.replace(/\/rest\/v1$/i, "");
+  return url;
 }
 
 function setUiDisabled() {
