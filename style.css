@@ -1,0 +1,293 @@
+﻿:root {
+  --bg: #f6f0e8;
+  --ink: #1f2430;
+  --muted: #5a6475;
+  --accent: #e2553f;
+  --accent-2: #0f7b74;
+  --surface: #fffdf9;
+  --line: #d8cfc2;
+  --ok: #2d7c44;
+  --danger: #9a2d23;
+  --shadow: 0 14px 32px rgba(31, 36, 48, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 15% 20%, #ffd7b4 0%, rgba(255, 215, 180, 0) 38%),
+    radial-gradient(circle at 85% 5%, #bce6df 0%, rgba(188, 230, 223, 0) 36%),
+    var(--bg);
+  font-family: "Kosugi Maru", sans-serif;
+  min-height: 100vh;
+}
+
+.bg-shape {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 999px;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+.bg-shape-a {
+  width: 280px;
+  height: 280px;
+  right: -90px;
+  bottom: -70px;
+  background: linear-gradient(145deg, #ff9478, #ffd3a3);
+}
+
+.bg-shape-b {
+  width: 220px;
+  height: 220px;
+  left: -70px;
+  top: 35%;
+  background: linear-gradient(145deg, #62d0c1, #b8f5d3);
+}
+
+.container {
+  position: relative;
+  z-index: 1;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 28px 16px 60px;
+}
+
+.hero {
+  animation: fade-up 560ms ease both;
+}
+
+.badge {
+  display: inline-block;
+  margin: 0;
+  padding: 6px 10px;
+  background: #1f2430;
+  color: #fff;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: "Oswald", sans-serif;
+  font-size: 12px;
+}
+
+h1 {
+  margin: 10px 0 6px;
+  font-family: "Oswald", sans-serif;
+  font-size: clamp(40px, 9vw, 64px);
+  line-height: 0.95;
+}
+
+.hero-copy {
+  margin: 0 0 18px;
+  color: var(--muted);
+}
+
+.room-label {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 14px;
+  animation: fade-up 620ms ease both;
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.add-form {
+  display: grid;
+  gap: 10px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+input,
+select,
+button {
+  font: inherit;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid #c6b8a7;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+button {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+form button {
+  justify-self: start;
+  background: var(--accent);
+  color: #fff;
+}
+
+.controls-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.secondary {
+  background: var(--accent-2);
+  color: #fff;
+}
+
+.danger {
+  background: #f2d8d4;
+  color: #6f1e17;
+  border-color: #d6a8a2;
+}
+
+.share-message {
+  margin: 0;
+  min-height: 1.2em;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.share-message.error {
+  color: #9a2d23;
+}
+
+.share-message.success {
+  color: #1b612f;
+}
+
+.watchlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+}
+
+.item-main {
+  display: flex;
+  gap: 10px;
+}
+
+.type-pill {
+  min-width: 48px;
+  height: 24px;
+  border-radius: 999px;
+  text-align: center;
+  line-height: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: #4d6070;
+}
+
+.item h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.note {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.item-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.toggle-btn {
+  background: #e6f3e9;
+  color: #1b612f;
+}
+
+.delete-btn {
+  background: #f8e4e1;
+  color: var(--danger);
+}
+
+.item.watched {
+  opacity: 0.75;
+}
+
+.item.watched h3 {
+  text-decoration: line-through;
+}
+
+.empty-state {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.hidden {
+  display: none;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 760px) {
+  .add-form {
+    grid-template-columns: 1fr 130px 1fr auto;
+    align-items: end;
+  }
+
+  form button {
+    margin-bottom: 0;
+  }
+}
