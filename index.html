@@ -55,12 +55,19 @@
         <button id="clear-btn" class="danger">すべて削除</button>
       </div>
       <p id="share-message" class="share-message" aria-live="polite"></p>
+      <p id="stats-message" class="stats-message"></p>
     </section>
 
     <section class="panel list-panel">
-      <h2>みんなの見たいリスト</h2>
-      <ul id="watchlist" class="watchlist"></ul>
-      <p id="empty-state" class="empty-state">まだ作品がありません。上から追加してください。</p>
+      <h2>見たいリスト</h2>
+      <ul id="todo-list" class="watchlist"></ul>
+      <p id="todo-empty" class="empty-state">まだ見たい作品がありません。</p>
+    </section>
+
+    <section class="panel list-panel">
+      <h2>視聴済みリスト</h2>
+      <ul id="watched-list" class="watchlist"></ul>
+      <p id="watched-empty" class="empty-state">まだ視聴済み作品はありません。</p>
     </section>
   </main>
 

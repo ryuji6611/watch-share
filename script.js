@@ -10,8 +10,11 @@ const searchInput = document.getElementById("search");
 const shareBtn = document.getElementById("share-btn");
 const clearBtn = document.getElementById("clear-btn");
 const shareMessage = document.getElementById("share-message");
-const watchlistEl = document.getElementById("watchlist");
-const emptyStateEl = document.getElementById("empty-state");
+const statsMessage = document.getElementById("stats-message");
+const todoListEl = document.getElementById("todo-list");
+const watchedListEl = document.getElementById("watched-list");
+const todoEmptyEl = document.getElementById("todo-empty");
+const watchedEmptyEl = document.getElementById("watched-empty");
 const itemTemplate = document.getElementById("item-template");
 const roomLabel = document.getElementById("room-label");
 
@@ -59,6 +62,7 @@ addForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  await fetchItems();
   addForm.reset();
   titleInput.focus();
   setMessage("作品を追加しました。", "success");
@@ -76,6 +80,7 @@ clearBtn.addEventListener("click", async () => {
     return;
   }
 
+  await fetchItems();
   setMessage("このルームのリストを削除しました。", "success");
 });
 
@@ -142,7 +147,8 @@ function subscribeRealtime() {
 }
 
 function render() {
-  watchlistEl.innerHTML = "";
+  todoListEl.innerHTML = "";
+  watchedListEl.innerHTML = "";
 
   const query = searchInput.value.trim().toLowerCase();
   const filtered = items.filter((item) => {
@@ -150,7 +156,23 @@ function render() {
     return text.includes(query);
   });
 
-  for (const item of filtered) {
+  const todoItems = filtered.filter((item) => !item.watched);
+  const watchedItems = filtered.filter((item) => item.watched);
+
+  for (const item of todoItems) {
+    todoListEl.appendChild(createItemNode(item));
+  }
+
+  for (const item of watchedItems) {
+    watchedListEl.appendChild(createItemNode(item));
+  }
+
+  todoEmptyEl.classList.toggle("hidden", todoItems.length !== 0);
+  watchedEmptyEl.classList.toggle("hidden", watchedItems.length !== 0);
+  updateStats(filtered.length);
+}
+
+function createItemNode(item) {
     const node = itemTemplate.content.firstElementChild.cloneNode(true);
     const titleEl = node.querySelector("h3");
     const noteEl = node.querySelector(".note");
@@ -177,7 +199,11 @@ function render() {
 
       if (error) {
         setMessage(`更新に失敗しました: ${error.message}`, "error");
+        return;
       }
+
+      await fetchItems();
+      setMessage("ステータスを更新しました。", "success");
     });
 
     deleteBtn.addEventListener("click", async () => {
@@ -189,13 +215,14 @@ function render() {
 
       if (error) {
         setMessage(`削除に失敗しました: ${error.message}`, "error");
+        return;
       }
+
+      await fetchItems();
+      setMessage("作品を削除しました。", "success");
     });
 
-    watchlistEl.appendChild(node);
-  }
-
-  emptyStateEl.classList.toggle("hidden", filtered.length !== 0);
+    return node;
 }
 
 function sanitizeItem(item) {
@@ -250,8 +277,16 @@ function setMessage(text, type = "") {
   }
 }
 
+function updateStats(filteredCount) {
+  const total = items.length;
+  const todoCount = items.filter((item) => !item.watched).length;
+  const watchedCount = total - todoCount;
+  const suffix = filteredCount === total ? "" : ` | 検索一致: ${filteredCount}件`;
+  statsMessage.textContent = `全${total}件 | 見たい: ${todoCount}件 | 視聴済み: ${watchedCount}件${suffix}`;
+}
+
 window.addEventListener("beforeunload", () => {
-  if (realtimeChannel) {
+  if (supabaseClient && realtimeChannel) {
     supabaseClient.removeChannel(realtimeChannel);
   }
 });
