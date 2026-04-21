@@ -9,7 +9,6 @@ const addForm = document.getElementById("add-form");
 const titleInput = document.getElementById("title");
 const typeInput = document.getElementById("type");
 const noteInput = document.getElementById("note");
-const posterUrlInput = document.getElementById("poster-url");
 const searchInput = document.getElementById("search");
 const shareBtn = document.getElementById("share-btn");
 const clearBtn = document.getElementById("clear-btn");
@@ -50,12 +49,11 @@ addForm.addEventListener("submit", async (event) => {
   const title = titleInput.value.trim();
   const type = normalizeType(typeInput.value);
   const note = noteInput.value.trim();
-  const manualPosterUrl = sanitizePosterUrl(posterUrlInput.value);
 
   if (!title) return;
 
   const tmdbMeta = await resolveTmdbMeta(title, type);
-  const posterUrl = manualPosterUrl || tmdbMeta.posterUrl;
+  const posterUrl = tmdbMeta.posterUrl;
   const { error } = await supabaseClient.from("watch_items").insert({
     room_id: roomId,
     title: title.slice(0, MAX_TITLE),
@@ -303,13 +301,6 @@ function typeColor(type) {
   if (type === "国内ドラマ") return "#0f7b74";
   if (type === "海外ドラマ") return "#2f7dbd";
   return "#4d6070";
-}
-
-function sanitizePosterUrl(raw) {
-  const value = String(raw || "").trim();
-  if (!value) return "";
-  if (!/^https?:\/\//i.test(value)) return "";
-  return value.slice(0, 400);
 }
 
 function normalizeRoomId(value) {
