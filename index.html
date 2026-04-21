@@ -42,6 +42,11 @@
           <input id="note" name="note" maxlength="160" placeholder="例: 週末にみたい" />
         </label>
 
+        <label>
+          ポスター画像URL（任意）
+          <input id="poster-url" name="poster-url" maxlength="400" placeholder="https://..." />
+        </label>
+
         <button type="submit">リストに追加</button>
       </form>
     </section>
@@ -73,10 +78,15 @@
 
   <template id="item-template">
     <li class="item">
+      <div class="poster-wrap">
+        <img class="poster" alt="" loading="lazy" />
+      </div>
       <div class="item-main">
-        <div class="type-pill"></div>
-        <div>
-          <h3></h3>
+        <div class="meta">
+          <div class="title-row">
+            <h3></h3>
+            <span class="type-badge"></span>
+          </div>
           <p class="note"></p>
         </div>
       </div>

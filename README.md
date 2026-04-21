@@ -5,6 +5,8 @@
 ## できること
 
 - 作品の追加（タイトル / 種別 / メモ）
+- 追加時にポスター画像を自動取得（TMDB）
+- 見たい / 視聴済みの2リスト表示
 - 検索
 - 視聴済み切り替え
 - 個別削除 / ルーム全削除
@@ -14,53 +16,20 @@
 ## 1. Supabaseプロジェクトを作成
 
 1. Supabaseで新規プロジェクトを作る
-2. SQL Editorで以下を実行する
-
-```sql
-create table if not exists public.watch_items (
-  id uuid primary key default gen_random_uuid(),
-  room_id text not null,
-  title text not null,
-  type text not null check (type in ('映画', 'ドラマ')),
-  note text not null default '',
-  watched boolean not null default false,
-  created_at timestamptz not null default now()
-);
-
-alter table public.watch_items enable row level security;
-
-create policy "watch_items read all"
-on public.watch_items
-for select
-using (true);
-
-create policy "watch_items insert all"
-on public.watch_items
-for insert
-with check (true);
-
-create policy "watch_items update all"
-on public.watch_items
-for update
-using (true)
-with check (true);
-
-create policy "watch_items delete all"
-on public.watch_items
-for delete
-using (true);
-
-alter publication supabase_realtime add table public.watch_items;
-```
+2. SQL Editorで [supabase-schema.sql](./supabase-schema.sql) を実行する
+3. 既存環境は追加で [supabase-poster-migration.sql](./supabase-poster-migration.sql) を実行する
 
 ## 2. キーを設定
 
-`supabase-config.js` を編集して、Project URL と anon key を入れる。
+`supabase-config.js` を編集して、Project URL / Publishable key / TMDB key を入れる。
 
 ```js
 window.WATCHSHARE_SUPABASE_URL = "https://xxxx.supabase.co";
-window.WATCHSHARE_SUPABASE_ANON_KEY = "your-anon-key";
+window.WATCHSHARE_SUPABASE_ANON_KEY = "sb_publishable_xxx";
+window.WATCHSHARE_TMDB_API_KEY = "tmdb_api_key";
 ```
+
+TMDB API key は [TMDB](https://www.themoviedb.org/settings/api) で発行。
 
 ## 3. 公開する
 

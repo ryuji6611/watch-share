@@ -1,11 +1,13 @@
 ﻿const MAX_TITLE = 120;
 const MAX_NOTE = 160;
 const DEFAULT_ROOM = "main";
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
 
 const addForm = document.getElementById("add-form");
 const titleInput = document.getElementById("title");
 const typeInput = document.getElementById("type");
 const noteInput = document.getElementById("note");
+const posterUrlInput = document.getElementById("poster-url");
 const searchInput = document.getElementById("search");
 const shareBtn = document.getElementById("share-btn");
 const clearBtn = document.getElementById("clear-btn");
@@ -46,14 +48,17 @@ addForm.addEventListener("submit", async (event) => {
   const title = titleInput.value.trim();
   const type = typeInput.value === "ドラマ" ? "ドラマ" : "映画";
   const note = noteInput.value.trim();
+  const manualPosterUrl = sanitizePosterUrl(posterUrlInput.value);
 
   if (!title) return;
 
+  const posterUrl = manualPosterUrl || (await resolvePosterUrl(title, type));
   const { error } = await supabaseClient.from("watch_items").insert({
     room_id: roomId,
     title: title.slice(0, MAX_TITLE),
     type,
     note: note.slice(0, MAX_NOTE),
+    poster_url: posterUrl,
     watched: false,
   });
 
@@ -111,7 +116,7 @@ async function bootstrap() {
 async function fetchItems() {
   const { data, error } = await supabaseClient
     .from("watch_items")
-    .select("id, title, type, note, watched, created_at")
+    .select("id, title, type, note, watched, poster_url, created_at")
     .eq("room_id", roomId)
     .order("created_at", { ascending: false });
 
@@ -174,56 +179,67 @@ function render() {
 }
 
 function createItemNode(item) {
-    const node = itemTemplate.content.firstElementChild.cloneNode(true);
-    const titleEl = node.querySelector("h3");
-    const noteEl = node.querySelector(".note");
-    const typePill = node.querySelector(".type-pill");
-    const toggleBtn = node.querySelector(".toggle-btn");
-    const deleteBtn = node.querySelector(".delete-btn");
+  const node = itemTemplate.content.firstElementChild.cloneNode(true);
+  const posterEl = node.querySelector(".poster");
+  const titleEl = node.querySelector("h3");
+  const noteEl = node.querySelector(".note");
+  const typeBadge = node.querySelector(".type-badge");
+  const toggleBtn = node.querySelector(".toggle-btn");
+  const deleteBtn = node.querySelector(".delete-btn");
 
-    titleEl.textContent = item.title;
-    noteEl.textContent = item.note || "メモなし";
-    typePill.textContent = item.type;
-    typePill.style.background = item.type === "映画" ? "#e2553f" : "#0f7b74";
-    toggleBtn.textContent = item.watched ? "未視聴に戻す" : "視聴済みにする";
+  posterEl.src = item.posterUrl || createPosterPlaceholder(item.title);
+  posterEl.alt = `${item.title} のポスター`;
+  posterEl.addEventListener(
+    "error",
+    () => {
+      posterEl.src = createPosterPlaceholder(item.title);
+    },
+    { once: true },
+  );
 
-    if (item.watched) {
-      node.classList.add("watched");
+  titleEl.textContent = item.title;
+  noteEl.textContent = item.note || "メモなし";
+  typeBadge.textContent = item.type;
+  typeBadge.style.background = item.type === "映画" ? "#e2553f" : "#0f7b74";
+  toggleBtn.textContent = item.watched ? "未視聴に戻す" : "視聴済みにする";
+
+  if (item.watched) {
+    node.classList.add("watched");
+  }
+
+  toggleBtn.addEventListener("click", async () => {
+    const { error } = await supabaseClient
+      .from("watch_items")
+      .update({ watched: !item.watched })
+      .eq("id", item.id)
+      .eq("room_id", roomId);
+
+    if (error) {
+      setMessage(`更新に失敗しました: ${error.message}`, "error");
+      return;
     }
 
-    toggleBtn.addEventListener("click", async () => {
-      const { error } = await supabaseClient
-        .from("watch_items")
-        .update({ watched: !item.watched })
-        .eq("id", item.id)
-        .eq("room_id", roomId);
+    await fetchItems();
+    setMessage("ステータスを更新しました。", "success");
+  });
 
-      if (error) {
-        setMessage(`更新に失敗しました: ${error.message}`, "error");
-        return;
-      }
+  deleteBtn.addEventListener("click", async () => {
+    const { error } = await supabaseClient
+      .from("watch_items")
+      .delete()
+      .eq("id", item.id)
+      .eq("room_id", roomId);
 
-      await fetchItems();
-      setMessage("ステータスを更新しました。", "success");
-    });
+    if (error) {
+      setMessage(`削除に失敗しました: ${error.message}`, "error");
+      return;
+    }
 
-    deleteBtn.addEventListener("click", async () => {
-      const { error } = await supabaseClient
-        .from("watch_items")
-        .delete()
-        .eq("id", item.id)
-        .eq("room_id", roomId);
+    await fetchItems();
+    setMessage("作品を削除しました。", "success");
+  });
 
-      if (error) {
-        setMessage(`削除に失敗しました: ${error.message}`, "error");
-        return;
-      }
-
-      await fetchItems();
-      setMessage("作品を削除しました。", "success");
-    });
-
-    return node;
+  return node;
 }
 
 function sanitizeItem(item) {
@@ -232,8 +248,16 @@ function sanitizeItem(item) {
     title: String(item.title || "").slice(0, MAX_TITLE),
     type: item.type === "ドラマ" ? "ドラマ" : "映画",
     note: String(item.note || "").slice(0, MAX_NOTE),
+    posterUrl: String(item.poster_url || ""),
     watched: Boolean(item.watched),
   };
+}
+
+function sanitizePosterUrl(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+  if (!/^https?:\/\//i.test(value)) return "";
+  return value.slice(0, 400);
 }
 
 function normalizeRoomId(value) {
@@ -284,6 +308,46 @@ function updateStats(filteredCount) {
   const watchedCount = total - todoCount;
   const suffix = filteredCount === total ? "" : ` | 検索一致: ${filteredCount}件`;
   statsMessage.textContent = `全${total}件 | 見たい: ${todoCount}件 | 視聴済み: ${watchedCount}件${suffix}`;
+}
+
+async function resolvePosterUrl(title, type) {
+  const apiKey = String(window.WATCHSHARE_TMDB_API_KEY || "").trim();
+  if (!apiKey || apiKey === "YOUR_TMDB_API_KEY") return "";
+
+  const endpoint = type === "ドラマ" ? "tv" : "movie";
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    query: title,
+    language: "ja-JP",
+    include_adult: "false",
+  });
+
+  try {
+    const response = await fetch(`https://api.themoviedb.org/3/search/${endpoint}?${params.toString()}`);
+    if (!response.ok) return "";
+    const payload = await response.json();
+    const first = Array.isArray(payload.results) ? payload.results[0] : null;
+    if (!first || !first.poster_path) return "";
+    return `${TMDB_IMAGE_BASE}${first.poster_path}`;
+  } catch {
+    return "";
+  }
+}
+
+function createPosterPlaceholder(title) {
+  const first = String(title || "?").trim().charAt(0) || "?";
+  const safeFirst = escapeSvgText(first);
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='64' height='92'><rect width='100%' height='100%' fill='%23ece7df'/><text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-size='28' fill='%23697484' font-family='Arial'>${safeFirst}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function escapeSvgText(text) {
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 window.addEventListener("beforeunload", () => {
