@@ -314,7 +314,6 @@ async function resolvePosterUrl(title, type) {
   const apiKey = String(window.WATCHSHARE_TMDB_API_KEY || "").trim();
   if (!apiKey || apiKey === "YOUR_TMDB_API_KEY") return "";
 
-  const endpoint = type === "ドラマ" ? "tv" : "movie";
   const params = new URLSearchParams({
     api_key: apiKey,
     query: title,
@@ -323,12 +322,16 @@ async function resolvePosterUrl(title, type) {
   });
 
   try {
-    const response = await fetch(`https://api.themoviedb.org/3/search/${endpoint}?${params.toString()}`);
+    const response = await fetch(`https://api.themoviedb.org/3/search/multi?${params.toString()}`);
     if (!response.ok) return "";
     const payload = await response.json();
-    const first = Array.isArray(payload.results) ? payload.results[0] : null;
-    if (!first || !first.poster_path) return "";
-    return `${TMDB_IMAGE_BASE}${first.poster_path}`;
+    const results = Array.isArray(payload.results) ? payload.results : [];
+    const kind = type === "ドラマ" ? "tv" : "movie";
+    const preferred = results.find((x) => x && x.media_type === kind && x.poster_path);
+    const fallback = results.find((x) => x && (x.media_type === "movie" || x.media_type === "tv") && x.poster_path);
+    const picked = preferred || fallback;
+    if (!picked || !picked.poster_path) return "";
+    return `${TMDB_IMAGE_BASE}${picked.poster_path}`;
   } catch {
     return "";
   }
