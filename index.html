@@ -26,7 +26,8 @@
       <form id="add-form" class="add-form">
         <label>
           タイトル
-          <input id="title" name="title" required maxlength="120" placeholder="例: Dune: Part Two" />
+          <input id="title" name="title" list="title-suggestions" required maxlength="120" placeholder="例: Dune: Part Two" autocomplete="off" />
+          <datalist id="title-suggestions"></datalist>
         </label>
 
         <label>

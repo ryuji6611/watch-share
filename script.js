@@ -4,12 +4,14 @@ const MAX_OVERVIEW = 600;
 const DEFAULT_ROOM = "main";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
 const TYPE_OPTIONS = ["洋画", "邦画", "国内ドラマ", "海外ドラマ"];
+const SUGGESTION_LIMIT = 8;
 
 const addForm = document.getElementById("add-form");
 const titleInput = document.getElementById("title");
 const typeInput = document.getElementById("type");
 const noteInput = document.getElementById("note");
 const searchInput = document.getElementById("search");
+const titleSuggestionsEl = document.getElementById("title-suggestions");
 const shareBtn = document.getElementById("share-btn");
 const clearBtn = document.getElementById("clear-btn");
 const shareMessage = document.getElementById("share-message");
@@ -26,9 +28,14 @@ const roomId = normalizeRoomId(url.searchParams.get("room"));
 let items = [];
 let supabaseClient = null;
 let realtimeChannel = null;
+let suggestionTimer = null;
+let suggestionAbortController = null;
+let latestSuggestions = [];
 
 roomLabel.textContent = `ルーム: ${roomId}`;
 searchInput.addEventListener("input", render);
+titleInput.addEventListener("input", handleTitleInput);
+titleInput.addEventListener("change", applySuggestionTypeIfMatched);
 
 shareBtn.addEventListener("click", async () => {
   const shareUrl = new URL(window.location.href);
@@ -295,12 +302,121 @@ function normalizeType(value) {
   return TYPE_OPTIONS[0];
 }
 
+function inferTypeFromSuggestion(suggestion) {
+  const mediaType = suggestion.mediaType;
+  const lang = String(suggestion.originalLanguage || "").toLowerCase();
+  if (mediaType === "movie") return lang === "ja" ? "邦画" : "洋画";
+  if (mediaType === "tv") return lang === "ja" ? "国内ドラマ" : "海外ドラマ";
+  return null;
+}
+
 function typeColor(type) {
   if (type === "洋画") return "#6f49cf";
   if (type === "邦画") return "#e2553f";
   if (type === "国内ドラマ") return "#0f7b74";
   if (type === "海外ドラマ") return "#2f7dbd";
   return "#4d6070";
+}
+
+function handleTitleInput() {
+  const query = titleInput.value.trim();
+  if (query.length < 2) {
+    clearSuggestions();
+    return;
+  }
+
+  clearTimeout(suggestionTimer);
+  suggestionTimer = setTimeout(() => {
+    fetchTitleSuggestions(query);
+  }, 220);
+}
+
+function applySuggestionTypeIfMatched() {
+  const matched = findSuggestionByTitle(titleInput.value.trim());
+  if (!matched) return;
+  const inferred = inferTypeFromSuggestion(matched);
+  if (!inferred) return;
+  typeInput.value = inferred;
+}
+
+async function fetchTitleSuggestions(query) {
+  const apiKey = String(window.WATCHSHARE_TMDB_API_KEY || "").trim();
+  if (!apiKey || apiKey === "YOUR_TMDB_API_KEY") {
+    clearSuggestions();
+    return;
+  }
+
+  if (suggestionAbortController) {
+    suggestionAbortController.abort();
+  }
+  suggestionAbortController = new AbortController();
+
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    query,
+    language: "ja-JP",
+    include_adult: "false",
+  });
+
+  try {
+    const response = await fetch(`https://api.themoviedb.org/3/search/multi?${params.toString()}`, {
+      signal: suggestionAbortController.signal,
+    });
+    if (!response.ok) {
+      clearSuggestions();
+      return;
+    }
+
+    const payload = await response.json();
+    const raw = Array.isArray(payload.results) ? payload.results : [];
+    const seen = new Set();
+    const suggestions = [];
+
+    for (const item of raw) {
+      if (!item || (item.media_type !== "movie" && item.media_type !== "tv")) continue;
+      const title = String(item.title || item.name || "").trim();
+      if (!title) continue;
+      const key = `${item.media_type}:${title.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      suggestions.push({
+        title,
+        mediaType: item.media_type,
+        originalLanguage: item.original_language || "",
+        posterUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : "",
+        overviewJa: typeof item.overview === "string" ? item.overview.trim() : "",
+      });
+
+      if (suggestions.length >= SUGGESTION_LIMIT) break;
+    }
+
+    latestSuggestions = suggestions;
+    renderSuggestionList(suggestions);
+  } catch (error) {
+    if (error && error.name === "AbortError") return;
+    clearSuggestions();
+  }
+}
+
+function renderSuggestionList(suggestions) {
+  titleSuggestionsEl.innerHTML = "";
+  for (const suggestion of suggestions) {
+    const option = document.createElement("option");
+    option.value = suggestion.title;
+    titleSuggestionsEl.appendChild(option);
+  }
+}
+
+function clearSuggestions() {
+  latestSuggestions = [];
+  titleSuggestionsEl.innerHTML = "";
+}
+
+function findSuggestionByTitle(title) {
+  const normalized = String(title || "").trim().toLowerCase();
+  if (!normalized) return null;
+  return latestSuggestions.find((x) => x.title.toLowerCase() === normalized) || null;
 }
 
 function normalizeRoomId(value) {
@@ -354,6 +470,14 @@ function updateStats(filteredCount) {
 }
 
 async function resolveTmdbMeta(title, type) {
+  const matched = findSuggestionByTitle(title);
+  if (matched) {
+    return {
+      posterUrl: matched.posterUrl,
+      overviewJa: matched.overviewJa,
+    };
+  }
+
   const apiKey = String(window.WATCHSHARE_TMDB_API_KEY || "").trim();
   if (!apiKey || apiKey === "YOUR_TMDB_API_KEY") {
     return { posterUrl: "", overviewJa: "" };
