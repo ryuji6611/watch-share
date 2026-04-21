@@ -20,6 +20,7 @@
 2. SQL Editorで [supabase-schema.sql](./supabase-schema.sql) を実行する
 3. 既存環境は追加で [supabase-poster-migration.sql](./supabase-poster-migration.sql) を実行する
 4. 既存環境は追加で [supabase-overview-migration.sql](./supabase-overview-migration.sql) を実行する
+5. 種別を新分類にする場合は [supabase-type-migration.sql](./supabase-type-migration.sql) を実行する
 
 ## 2. キーを設定
 

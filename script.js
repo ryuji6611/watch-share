@@ -3,6 +3,7 @@ const MAX_NOTE = 160;
 const MAX_OVERVIEW = 600;
 const DEFAULT_ROOM = "main";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
+const TYPE_OPTIONS = ["洋画", "邦画", "国内ドラマ", "海外ドラマ"];
 
 const addForm = document.getElementById("add-form");
 const titleInput = document.getElementById("title");
@@ -47,7 +48,7 @@ addForm.addEventListener("submit", async (event) => {
   if (!supabaseClient) return;
 
   const title = titleInput.value.trim();
-  const type = typeInput.value === "ドラマ" ? "ドラマ" : "映画";
+  const type = normalizeType(typeInput.value);
   const note = noteInput.value.trim();
   const manualPosterUrl = sanitizePosterUrl(posterUrlInput.value);
 
@@ -72,6 +73,7 @@ addForm.addEventListener("submit", async (event) => {
 
   await fetchItems();
   addForm.reset();
+  typeInput.value = TYPE_OPTIONS[0];
   titleInput.focus();
   setMessage("作品を追加しました。", "success");
 });
@@ -187,7 +189,7 @@ function createItemNode(item) {
   const titleEl = node.querySelector("h3");
   const summaryEl = node.querySelector(".summary");
   const noteEl = node.querySelector(".note");
-  const typeBadge = node.querySelector(".type-badge");
+  const typeSelect = node.querySelector(".type-select");
   const toggleBtn = node.querySelector(".toggle-btn");
   const deleteBtn = node.querySelector(".delete-btn");
 
@@ -206,10 +208,37 @@ function createItemNode(item) {
   summaryEl.classList.toggle("hidden", !item.overviewJa);
   noteEl.textContent = item.note ? `メモ: ${item.note}` : "";
   noteEl.classList.toggle("hidden", !item.note);
-  typeBadge.textContent = item.type;
-  typeBadge.style.background = item.type === "映画" ? "#e2553f" : "#0f7b74";
-  toggleBtn.textContent = item.watched ? "未視聴に戻す" : "視聴済みにする";
 
+  TYPE_OPTIONS.forEach((optionType) => {
+    const option = document.createElement("option");
+    option.value = optionType;
+    option.textContent = optionType;
+    typeSelect.appendChild(option);
+  });
+  typeSelect.value = normalizeType(item.type);
+  typeSelect.style.background = typeColor(typeSelect.value);
+
+  typeSelect.addEventListener("change", async () => {
+    const nextType = normalizeType(typeSelect.value);
+    const { error } = await supabaseClient
+      .from("watch_items")
+      .update({ type: nextType })
+      .eq("id", item.id)
+      .eq("room_id", roomId);
+
+    if (error) {
+      setMessage(`種別更新に失敗しました: ${error.message}`, "error");
+      typeSelect.value = normalizeType(item.type);
+      typeSelect.style.background = typeColor(typeSelect.value);
+      return;
+    }
+
+    typeSelect.style.background = typeColor(nextType);
+    await fetchItems();
+    setMessage("種別を更新しました。", "success");
+  });
+
+  toggleBtn.textContent = item.watched ? "未視聴に戻す" : "視聴済みにする";
   if (item.watched) {
     node.classList.add("watched");
   }
@@ -253,12 +282,27 @@ function sanitizeItem(item) {
   return {
     id: String(item.id),
     title: String(item.title || "").slice(0, MAX_TITLE),
-    type: item.type === "ドラマ" ? "ドラマ" : "映画",
+    type: normalizeType(item.type),
     note: String(item.note || "").slice(0, MAX_NOTE),
     posterUrl: String(item.poster_url || ""),
     overviewJa: String(item.overview_ja || "").slice(0, MAX_OVERVIEW),
     watched: Boolean(item.watched),
   };
+}
+
+function normalizeType(value) {
+  if (TYPE_OPTIONS.includes(value)) return value;
+  if (value === "映画") return "邦画";
+  if (value === "ドラマ") return "国内ドラマ";
+  return TYPE_OPTIONS[0];
+}
+
+function typeColor(type) {
+  if (type === "洋画") return "#6f49cf";
+  if (type === "邦画") return "#e2553f";
+  if (type === "国内ドラマ") return "#0f7b74";
+  if (type === "海外ドラマ") return "#2f7dbd";
+  return "#4d6070";
 }
 
 function sanitizePosterUrl(raw) {
@@ -336,8 +380,8 @@ async function resolveTmdbMeta(title, type) {
     if (!response.ok) return { posterUrl: "", overviewJa: "" };
     const payload = await response.json();
     const results = Array.isArray(payload.results) ? payload.results : [];
-    const kind = type === "ドラマ" ? "tv" : "movie";
-    const preferred = results.find((x) => x && x.media_type === kind);
+    const preferredMedia = type === "国内ドラマ" || type === "海外ドラマ" ? "tv" : "movie";
+    const preferred = results.find((x) => x && x.media_type === preferredMedia);
     const fallback = results.find((x) => x && (x.media_type === "movie" || x.media_type === "tv"));
     const picked = preferred || fallback;
     if (!picked) return { posterUrl: "", overviewJa: "" };

@@ -32,8 +32,10 @@
         <label>
           種別
           <select id="type" name="type">
-            <option value="映画">映画</option>
-            <option value="ドラマ">ドラマ</option>
+            <option value="洋画">洋画</option>
+            <option value="邦画">邦画</option>
+            <option value="国内ドラマ">国内ドラマ</option>
+            <option value="海外ドラマ">海外ドラマ</option>
           </select>
         </label>
 
@@ -85,7 +87,7 @@
         <div class="meta">
           <div class="title-row">
             <h3></h3>
-            <span class="type-badge"></span>
+            <select class="type-select" aria-label="種別を変更"></select>
           </div>
           <p class="summary"></p>
           <p class="note"></p>
