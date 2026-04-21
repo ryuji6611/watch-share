@@ -1,5 +1,6 @@
 ﻿const MAX_TITLE = 120;
 const MAX_NOTE = 160;
+const MAX_OVERVIEW = 600;
 const DEFAULT_ROOM = "main";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
 
@@ -52,13 +53,15 @@ addForm.addEventListener("submit", async (event) => {
 
   if (!title) return;
 
-  const posterUrl = manualPosterUrl || (await resolvePosterUrl(title, type));
+  const tmdbMeta = await resolveTmdbMeta(title, type);
+  const posterUrl = manualPosterUrl || tmdbMeta.posterUrl;
   const { error } = await supabaseClient.from("watch_items").insert({
     room_id: roomId,
     title: title.slice(0, MAX_TITLE),
     type,
     note: note.slice(0, MAX_NOTE),
     poster_url: posterUrl,
+    overview_ja: tmdbMeta.overviewJa.slice(0, MAX_OVERVIEW),
     watched: false,
   });
 
@@ -116,7 +119,7 @@ async function bootstrap() {
 async function fetchItems() {
   const { data, error } = await supabaseClient
     .from("watch_items")
-    .select("id, title, type, note, watched, poster_url, created_at")
+    .select("id, title, type, note, watched, poster_url, overview_ja, created_at")
     .eq("room_id", roomId)
     .order("created_at", { ascending: false });
 
@@ -158,7 +161,7 @@ function render() {
   const query = searchInput.value.trim().toLowerCase();
   const filtered = items.filter((item) => {
     const statusLabel = item.watched ? "視聴済み" : "見たい";
-    const text = `${item.title} ${item.note} ${item.type} ${statusLabel}`.toLowerCase();
+    const text = `${item.title} ${item.note} ${item.overviewJa} ${item.type} ${statusLabel}`.toLowerCase();
     return text.includes(query);
   });
 
@@ -182,6 +185,7 @@ function createItemNode(item) {
   const node = itemTemplate.content.firstElementChild.cloneNode(true);
   const posterEl = node.querySelector(".poster");
   const titleEl = node.querySelector("h3");
+  const summaryEl = node.querySelector(".summary");
   const noteEl = node.querySelector(".note");
   const typeBadge = node.querySelector(".type-badge");
   const toggleBtn = node.querySelector(".toggle-btn");
@@ -198,7 +202,10 @@ function createItemNode(item) {
   );
 
   titleEl.textContent = item.title;
-  noteEl.textContent = item.note || "メモなし";
+  summaryEl.textContent = item.overviewJa || "";
+  summaryEl.classList.toggle("hidden", !item.overviewJa);
+  noteEl.textContent = item.note ? `メモ: ${item.note}` : "";
+  noteEl.classList.toggle("hidden", !item.note);
   typeBadge.textContent = item.type;
   typeBadge.style.background = item.type === "映画" ? "#e2553f" : "#0f7b74";
   toggleBtn.textContent = item.watched ? "未視聴に戻す" : "視聴済みにする";
@@ -249,6 +256,7 @@ function sanitizeItem(item) {
     type: item.type === "ドラマ" ? "ドラマ" : "映画",
     note: String(item.note || "").slice(0, MAX_NOTE),
     posterUrl: String(item.poster_url || ""),
+    overviewJa: String(item.overview_ja || "").slice(0, MAX_OVERVIEW),
     watched: Boolean(item.watched),
   };
 }
@@ -310,9 +318,11 @@ function updateStats(filteredCount) {
   statsMessage.textContent = `全${total}件 | 見たい: ${todoCount}件 | 視聴済み: ${watchedCount}件${suffix}`;
 }
 
-async function resolvePosterUrl(title, type) {
+async function resolveTmdbMeta(title, type) {
   const apiKey = String(window.WATCHSHARE_TMDB_API_KEY || "").trim();
-  if (!apiKey || apiKey === "YOUR_TMDB_API_KEY") return "";
+  if (!apiKey || apiKey === "YOUR_TMDB_API_KEY") {
+    return { posterUrl: "", overviewJa: "" };
+  }
 
   const params = new URLSearchParams({
     api_key: apiKey,
@@ -323,17 +333,20 @@ async function resolvePosterUrl(title, type) {
 
   try {
     const response = await fetch(`https://api.themoviedb.org/3/search/multi?${params.toString()}`);
-    if (!response.ok) return "";
+    if (!response.ok) return { posterUrl: "", overviewJa: "" };
     const payload = await response.json();
     const results = Array.isArray(payload.results) ? payload.results : [];
     const kind = type === "ドラマ" ? "tv" : "movie";
-    const preferred = results.find((x) => x && x.media_type === kind && x.poster_path);
-    const fallback = results.find((x) => x && (x.media_type === "movie" || x.media_type === "tv") && x.poster_path);
+    const preferred = results.find((x) => x && x.media_type === kind);
+    const fallback = results.find((x) => x && (x.media_type === "movie" || x.media_type === "tv"));
     const picked = preferred || fallback;
-    if (!picked || !picked.poster_path) return "";
-    return `${TMDB_IMAGE_BASE}${picked.poster_path}`;
+    if (!picked) return { posterUrl: "", overviewJa: "" };
+
+    const posterUrl = picked.poster_path ? `${TMDB_IMAGE_BASE}${picked.poster_path}` : "";
+    const overviewJa = typeof picked.overview === "string" ? picked.overview.trim() : "";
+    return { posterUrl, overviewJa };
   } catch {
-    return "";
+    return { posterUrl: "", overviewJa: "" };
   }
 }
 

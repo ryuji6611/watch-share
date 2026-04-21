@@ -267,6 +267,13 @@ form button {
   font-size: 13px;
 }
 
+.summary {
+  margin: 6px 0 0;
+  color: #404a5c;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .item-actions {
   display: flex;
   gap: 6px;

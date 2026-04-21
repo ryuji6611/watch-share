@@ -6,6 +6,7 @@
 
 - 作品の追加（タイトル / 種別 / メモ）
 - 追加時にポスター画像を自動取得（TMDB）
+- 追加時に日本語あらすじを自動取得（TMDB）
 - 見たい / 視聴済みの2リスト表示
 - 検索
 - 視聴済み切り替え
@@ -18,6 +19,7 @@
 1. Supabaseで新規プロジェクトを作る
 2. SQL Editorで [supabase-schema.sql](./supabase-schema.sql) を実行する
 3. 既存環境は追加で [supabase-poster-migration.sql](./supabase-poster-migration.sql) を実行する
+4. 既存環境は追加で [supabase-overview-migration.sql](./supabase-overview-migration.sql) を実行する
 
 ## 2. キーを設定
 
