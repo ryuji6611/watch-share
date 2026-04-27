@@ -512,7 +512,7 @@ async function resolveTrailerUrl(title, type, signal) {
 
   const videoKey = await fetchTrailerVideoKey(apiKey, baseInfo.mediaType, baseInfo.id, signal);
   if (!videoKey) return "";
-  return `https://www.youtube.com/embed/${videoKey}`;
+  return `https://www.youtube-nocookie.com/embed/${videoKey}`;
 }
 
 async function resolveTmdbBaseInfo(title, type, apiKey, signal) {
