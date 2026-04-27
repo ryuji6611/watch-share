@@ -22,6 +22,11 @@ const todoEmptyEl = document.getElementById("todo-empty");
 const watchedEmptyEl = document.getElementById("watched-empty");
 const itemTemplate = document.getElementById("item-template");
 const roomLabel = document.getElementById("room-label");
+const trailerModalEl = document.getElementById("trailer-modal");
+const trailerCloseBtn = document.getElementById("trailer-close");
+const trailerStatusEl = document.getElementById("trailer-status");
+const trailerFrameEl = document.getElementById("trailer-frame");
+const trailerTitleEl = document.getElementById("trailer-title");
 
 const url = new URL(window.location.href);
 const roomId = normalizeRoomId(url.searchParams.get("room"));
@@ -36,6 +41,17 @@ roomLabel.textContent = `ルーム: ${roomId}`;
 searchInput.addEventListener("input", render);
 titleInput.addEventListener("input", handleTitleInput);
 titleInput.addEventListener("change", applySuggestionTypeIfMatched);
+trailerCloseBtn.addEventListener("click", closeTrailerModal);
+trailerModalEl.addEventListener("click", (event) => {
+  if (event.target === trailerModalEl) {
+    closeTrailerModal();
+  }
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !trailerModalEl.classList.contains("hidden")) {
+    closeTrailerModal();
+  }
+});
 
 shareBtn.addEventListener("click", async () => {
   const shareUrl = new URL(window.location.href);
@@ -197,6 +213,7 @@ function createItemNode(item) {
   const typeSelect = node.querySelector(".type-select");
   const toggleBtn = node.querySelector(".toggle-btn");
   const deleteBtn = node.querySelector(".delete-btn");
+  const itemMain = node.querySelector(".item-main");
 
   posterEl.src = item.posterUrl || createPosterPlaceholder(item.title);
   posterEl.alt = `${item.title} のポスター`;
@@ -278,6 +295,11 @@ function createItemNode(item) {
 
     await fetchItems();
     setMessage("作品を削除しました。", "success");
+  });
+
+  itemMain.addEventListener("click", async (event) => {
+    if (event.target.closest(".type-select")) return;
+    await openTrailerModal(item);
   });
 
   return node;
@@ -411,6 +433,91 @@ function renderSuggestionList(suggestions) {
 function clearSuggestions() {
   latestSuggestions = [];
   titleSuggestionsEl.innerHTML = "";
+}
+
+async function openTrailerModal(item) {
+  trailerTitleEl.textContent = `${item.title} の予告編`;
+  trailerStatusEl.textContent = "予告編を探しています...";
+  trailerStatusEl.classList.remove("hidden");
+  trailerFrameEl.classList.add("hidden");
+  trailerFrameEl.src = "";
+  trailerModalEl.classList.remove("hidden");
+  trailerModalEl.setAttribute("aria-hidden", "false");
+
+  const trailerUrl = await resolveTrailerUrl(item.title, item.type);
+  if (!trailerUrl) {
+    trailerStatusEl.textContent = "予告編が見つかりませんでした。";
+    return;
+  }
+
+  trailerFrameEl.src = trailerUrl;
+  trailerStatusEl.classList.add("hidden");
+  trailerFrameEl.classList.remove("hidden");
+}
+
+function closeTrailerModal() {
+  trailerModalEl.classList.add("hidden");
+  trailerModalEl.setAttribute("aria-hidden", "true");
+  trailerFrameEl.src = "";
+}
+
+async function resolveTrailerUrl(title, type) {
+  const apiKey = String(window.WATCHSHARE_TMDB_API_KEY || "").trim();
+  if (!apiKey || apiKey === "YOUR_TMDB_API_KEY") {
+    trailerStatusEl.textContent = "TMDB APIキー未設定のため再生できません。";
+    return "";
+  }
+
+  const baseInfo = await resolveTmdbBaseInfo(title, type, apiKey);
+  if (!baseInfo) return "";
+
+  const videoKey = await fetchTrailerVideoKey(apiKey, baseInfo.mediaType, baseInfo.id);
+  if (!videoKey) return "";
+  return `https://www.youtube.com/embed/${videoKey}`;
+}
+
+async function resolveTmdbBaseInfo(title, type, apiKey) {
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    query: title,
+    language: "ja-JP",
+    include_adult: "false",
+  });
+
+  try {
+    const response = await fetch(`https://api.themoviedb.org/3/search/multi?${params.toString()}`);
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const results = Array.isArray(payload.results) ? payload.results : [];
+    const preferredMedia = type === "国内ドラマ" || type === "海外ドラマ" ? "tv" : "movie";
+    const preferred = results.find((x) => x && x.media_type === preferredMedia);
+    const fallback = results.find((x) => x && (x.media_type === "movie" || x.media_type === "tv"));
+    const picked = preferred || fallback;
+    if (!picked || !picked.id || !picked.media_type) return null;
+    return { id: picked.id, mediaType: picked.media_type };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchTrailerVideoKey(apiKey, mediaType, tmdbId) {
+  const languages = ["ja-JP", "en-US", ""];
+  for (const language of languages) {
+    const params = new URLSearchParams({ api_key: apiKey });
+    if (language) params.set("language", language);
+    try {
+      const response = await fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos?${params.toString()}`);
+      if (!response.ok) continue;
+      const payload = await response.json();
+      const results = Array.isArray(payload.results) ? payload.results : [];
+      const youtubeOnly = results.filter((x) => x && x.site === "YouTube");
+      const trailer = youtubeOnly.find((x) => x.type === "Trailer") || youtubeOnly.find((x) => x.type === "Teaser") || youtubeOnly[0];
+      if (trailer && trailer.key) return trailer.key;
+    } catch {
+      continue;
+    }
+  }
+  return "";
 }
 
 function findSuggestionByTitle(title) {

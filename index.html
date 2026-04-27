@@ -74,6 +74,25 @@
     </section>
   </main>
 
+  <div id="trailer-modal" class="trailer-modal hidden" aria-hidden="true">
+    <div class="trailer-dialog" role="dialog" aria-modal="true" aria-labelledby="trailer-title">
+      <div class="trailer-head">
+        <h2 id="trailer-title">予告編</h2>
+        <button id="trailer-close" class="trailer-close" type="button">閉じる</button>
+      </div>
+      <div class="trailer-body">
+        <p id="trailer-status" class="trailer-status">読み込み中...</p>
+        <iframe
+          id="trailer-frame"
+          class="trailer-frame hidden"
+          title="予告編プレイヤー"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen
+        ></iframe>
+      </div>
+    </div>
+  </div>
+
   <template id="item-template">
     <li class="item">
       <div class="poster-wrap">
