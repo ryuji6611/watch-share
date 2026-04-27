@@ -5,6 +5,7 @@ const DEFAULT_ROOM = "main";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
 const TYPE_OPTIONS = ["洋画", "邦画", "国内ドラマ", "海外ドラマ"];
 const SUGGESTION_LIMIT = 8;
+const TRAILER_TIMEOUT_MS = 8000;
 
 const addForm = document.getElementById("add-form");
 const titleInput = document.getElementById("title");
@@ -36,6 +37,9 @@ let realtimeChannel = null;
 let suggestionTimer = null;
 let suggestionAbortController = null;
 let latestSuggestions = [];
+let trailerAbortController = null;
+let trailerRequestToken = 0;
+const trailerCache = new Map();
 
 roomLabel.textContent = `ルーム: ${roomId}`;
 searchInput.addEventListener("input", render);
@@ -436,6 +440,13 @@ function clearSuggestions() {
 }
 
 async function openTrailerModal(item) {
+  trailerRequestToken += 1;
+  const requestToken = trailerRequestToken;
+  if (trailerAbortController) {
+    trailerAbortController.abort();
+  }
+  trailerAbortController = new AbortController();
+
   trailerTitleEl.textContent = `${item.title} の予告編`;
   trailerStatusEl.textContent = "予告編を探しています...";
   trailerStatusEl.classList.remove("hidden");
@@ -444,39 +455,54 @@ async function openTrailerModal(item) {
   trailerModalEl.classList.remove("hidden");
   trailerModalEl.setAttribute("aria-hidden", "false");
 
-  const trailerUrl = await resolveTrailerUrl(item.title, item.type);
+  const cacheKey = `${item.id}:${item.title}:${item.type}`;
+  if (trailerCache.has(cacheKey)) {
+    trailerFrameEl.src = trailerCache.get(cacheKey);
+    trailerStatusEl.classList.add("hidden");
+    trailerFrameEl.classList.remove("hidden");
+    return;
+  }
+
+  const trailerUrl = await resolveTrailerUrl(item.title, item.type, trailerAbortController.signal);
+  if (requestToken !== trailerRequestToken) return;
   if (!trailerUrl) {
     trailerStatusEl.textContent = "予告編が見つかりませんでした。";
     return;
   }
 
+  trailerCache.set(cacheKey, trailerUrl);
   trailerFrameEl.src = trailerUrl;
   trailerStatusEl.classList.add("hidden");
   trailerFrameEl.classList.remove("hidden");
 }
 
 function closeTrailerModal() {
+  trailerRequestToken += 1;
+  if (trailerAbortController) {
+    trailerAbortController.abort();
+    trailerAbortController = null;
+  }
   trailerModalEl.classList.add("hidden");
   trailerModalEl.setAttribute("aria-hidden", "true");
   trailerFrameEl.src = "";
 }
 
-async function resolveTrailerUrl(title, type) {
+async function resolveTrailerUrl(title, type, signal) {
   const apiKey = String(window.WATCHSHARE_TMDB_API_KEY || "").trim();
   if (!apiKey || apiKey === "YOUR_TMDB_API_KEY") {
     trailerStatusEl.textContent = "TMDB APIキー未設定のため再生できません。";
     return "";
   }
 
-  const baseInfo = await resolveTmdbBaseInfo(title, type, apiKey);
+  const baseInfo = await resolveTmdbBaseInfo(title, type, apiKey, signal);
   if (!baseInfo) return "";
 
-  const videoKey = await fetchTrailerVideoKey(apiKey, baseInfo.mediaType, baseInfo.id);
+  const videoKey = await fetchTrailerVideoKey(apiKey, baseInfo.mediaType, baseInfo.id, signal);
   if (!videoKey) return "";
   return `https://www.youtube.com/embed/${videoKey}`;
 }
 
-async function resolveTmdbBaseInfo(title, type, apiKey) {
+async function resolveTmdbBaseInfo(title, type, apiKey, signal) {
   const params = new URLSearchParams({
     api_key: apiKey,
     query: title,
@@ -485,7 +511,11 @@ async function resolveTmdbBaseInfo(title, type, apiKey) {
   });
 
   try {
-    const response = await fetch(`https://api.themoviedb.org/3/search/multi?${params.toString()}`);
+    const response = await fetchWithTimeout(
+      `https://api.themoviedb.org/3/search/multi?${params.toString()}`,
+      { signal },
+      TRAILER_TIMEOUT_MS,
+    );
     if (!response.ok) return null;
     const payload = await response.json();
     const results = Array.isArray(payload.results) ? payload.results : [];
@@ -495,29 +525,60 @@ async function resolveTmdbBaseInfo(title, type, apiKey) {
     const picked = preferred || fallback;
     if (!picked || !picked.id || !picked.media_type) return null;
     return { id: picked.id, mediaType: picked.media_type };
-  } catch {
+  } catch (error) {
+    if (error && error.name === "AbortError") return null;
+    trailerStatusEl.textContent = "通信がタイムアウトしました。もう一度お試しください。";
     return null;
   }
 }
 
-async function fetchTrailerVideoKey(apiKey, mediaType, tmdbId) {
+async function fetchTrailerVideoKey(apiKey, mediaType, tmdbId, signal) {
   const languages = ["ja-JP", "en-US", ""];
   for (const language of languages) {
     const params = new URLSearchParams({ api_key: apiKey });
     if (language) params.set("language", language);
     try {
-      const response = await fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos?${params.toString()}`);
+      const response = await fetchWithTimeout(
+        `https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos?${params.toString()}`,
+        { signal },
+        TRAILER_TIMEOUT_MS,
+      );
       if (!response.ok) continue;
       const payload = await response.json();
       const results = Array.isArray(payload.results) ? payload.results : [];
       const youtubeOnly = results.filter((x) => x && x.site === "YouTube");
       const trailer = youtubeOnly.find((x) => x.type === "Trailer") || youtubeOnly.find((x) => x.type === "Teaser") || youtubeOnly[0];
       if (trailer && trailer.key) return trailer.key;
-    } catch {
+    } catch (error) {
+      if (error && error.name === "AbortError") return "";
       continue;
     }
   }
   return "";
+}
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+  try {
+    const mergedSignal = combineSignals(options.signal, timeoutController.signal);
+    return await fetch(url, { ...options, signal: mergedSignal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function combineSignals(signalA, signalB) {
+  if (!signalA) return signalB;
+  if (!signalB) return signalA;
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  signalA.addEventListener("abort", onAbort, { once: true });
+  signalB.addEventListener("abort", onAbort, { once: true });
+  if (signalA.aborted || signalB.aborted) {
+    controller.abort();
+  }
+  return controller.signal;
 }
 
 function findSuggestionByTitle(title) {
@@ -633,6 +694,9 @@ function escapeSvgText(text) {
 }
 
 window.addEventListener("beforeunload", () => {
+  if (trailerAbortController) {
+    trailerAbortController.abort();
+  }
   if (supabaseClient && realtimeChannel) {
     supabaseClient.removeChannel(realtimeChannel);
   }
