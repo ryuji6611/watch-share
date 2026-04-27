@@ -6,6 +6,7 @@ const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
 const TYPE_OPTIONS = ["洋画", "邦画", "国内ドラマ", "海外ドラマ"];
 const SUGGESTION_LIMIT = 8;
 const TRAILER_TIMEOUT_MS = 8000;
+const TRAILER_HARD_TIMEOUT_MS = 10000;
 
 const addForm = document.getElementById("add-form");
 const titleInput = document.getElementById("title");
@@ -463,8 +464,15 @@ async function openTrailerModal(item) {
     return;
   }
 
-  const trailerUrl = await resolveTrailerUrl(item.title, item.type, trailerAbortController.signal);
+  const trailerUrl = await promiseWithHardTimeout(
+    resolveTrailerUrl(item.title, item.type, trailerAbortController.signal),
+    TRAILER_HARD_TIMEOUT_MS,
+  );
   if (requestToken !== trailerRequestToken) return;
+  if (trailerUrl === "__timeout__") {
+    trailerStatusEl.textContent = "読み込みがタイムアウトしました。もう一度お試しください。";
+    return;
+  }
   if (!trailerUrl) {
     trailerStatusEl.textContent = "予告編が見つかりませんでした。";
     return;
@@ -560,25 +568,34 @@ async function fetchTrailerVideoKey(apiKey, mediaType, tmdbId, signal) {
 async function fetchWithTimeout(url, options, timeoutMs) {
   const timeoutController = new AbortController();
   const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+  const externalSignal = options && options.signal ? options.signal : null;
+  const onExternalAbort = () => timeoutController.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      timeoutController.abort();
+    } else {
+      externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+    }
+  }
   try {
-    const mergedSignal = combineSignals(options.signal, timeoutController.signal);
-    return await fetch(url, { ...options, signal: mergedSignal });
+    const requestOptions = { ...(options || {}), signal: timeoutController.signal };
+    return await fetch(url, requestOptions);
   } finally {
     clearTimeout(timeoutId);
+    if (externalSignal) {
+      externalSignal.removeEventListener("abort", onExternalAbort);
+    }
   }
 }
 
-function combineSignals(signalA, signalB) {
-  if (!signalA) return signalB;
-  if (!signalB) return signalA;
-  const controller = new AbortController();
-  const onAbort = () => controller.abort();
-  signalA.addEventListener("abort", onAbort, { once: true });
-  signalB.addEventListener("abort", onAbort, { once: true });
-  if (signalA.aborted || signalB.aborted) {
-    controller.abort();
-  }
-  return controller.signal;
+function promiseWithHardTimeout(promise, timeoutMs) {
+  let timeoutId = null;
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => resolve("__timeout__"), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
 }
 
 function findSuggestionByTitle(title) {
