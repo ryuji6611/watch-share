@@ -318,6 +318,10 @@ form button {
   z-index: 30;
 }
 
+.trailer-modal.hidden {
+  display: none;
+}
+
 .trailer-dialog {
   width: min(860px, 100%);
   background: #fffdf9;
