@@ -464,24 +464,29 @@ async function openTrailerModal(item) {
     return;
   }
 
-  const trailerUrl = await promiseWithHardTimeout(
-    resolveTrailerUrl(item.title, item.type, trailerAbortController.signal),
-    TRAILER_HARD_TIMEOUT_MS,
-  );
-  if (requestToken !== trailerRequestToken) return;
-  if (trailerUrl === "__timeout__") {
-    trailerStatusEl.textContent = "読み込みがタイムアウトしました。もう一度お試しください。";
-    return;
-  }
-  if (!trailerUrl) {
-    trailerStatusEl.textContent = "予告編が見つかりませんでした。";
-    return;
-  }
+  try {
+    const trailerUrl = await promiseWithHardTimeout(
+      resolveTrailerUrl(item.title, item.type, trailerAbortController.signal),
+      TRAILER_HARD_TIMEOUT_MS,
+    );
+    if (requestToken !== trailerRequestToken) return;
+    if (trailerUrl === "__timeout__") {
+      trailerStatusEl.textContent = "読み込みがタイムアウトしました。もう一度お試しください。";
+      return;
+    }
+    if (!trailerUrl) {
+      trailerStatusEl.textContent = "予告編が見つかりませんでした。";
+      return;
+    }
 
-  trailerCache.set(cacheKey, trailerUrl);
-  trailerFrameEl.src = trailerUrl;
-  trailerStatusEl.classList.add("hidden");
-  trailerFrameEl.classList.remove("hidden");
+    trailerCache.set(cacheKey, trailerUrl);
+    trailerFrameEl.src = trailerUrl;
+    trailerStatusEl.classList.add("hidden");
+    trailerFrameEl.classList.remove("hidden");
+  } catch (error) {
+    if (requestToken !== trailerRequestToken) return;
+    trailerStatusEl.textContent = `再生エラー: ${String(error && error.message ? error.message : error)}`;
+  }
 }
 
 function closeTrailerModal() {
