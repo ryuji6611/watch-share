@@ -41,8 +41,10 @@ let latestSuggestions = [];
 let trailerAbortController = null;
 let trailerRequestToken = 0;
 const trailerCache = new Map();
+let trailerAutoCloseTimer = null;
 
 roomLabel.textContent = `ルーム: ${roomId}`;
+resetTrailerModalState();
 searchInput.addEventListener("input", render);
 titleInput.addEventListener("input", handleTitleInput);
 titleInput.addEventListener("change", applySuggestionTypeIfMatched);
@@ -56,6 +58,9 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !trailerModalEl.classList.contains("hidden")) {
     closeTrailerModal();
   }
+});
+window.addEventListener("pageshow", () => {
+  resetTrailerModalState();
 });
 
 shareBtn.addEventListener("click", async () => {
@@ -455,6 +460,13 @@ async function openTrailerModal(item) {
   trailerFrameEl.src = "";
   trailerModalEl.classList.remove("hidden");
   trailerModalEl.setAttribute("aria-hidden", "false");
+  if (trailerAutoCloseTimer) {
+    clearTimeout(trailerAutoCloseTimer);
+  }
+  trailerAutoCloseTimer = setTimeout(() => {
+    trailerStatusEl.textContent = "読み込みが長いため自動で閉じました。もう一度お試しください。";
+    closeTrailerModal();
+  }, 15000);
 
   const cacheKey = `${item.id}:${item.title}:${item.type}`;
   if (trailerCache.has(cacheKey)) {
@@ -497,6 +509,19 @@ function closeTrailerModal() {
   }
   trailerModalEl.classList.add("hidden");
   trailerModalEl.setAttribute("aria-hidden", "true");
+  trailerFrameEl.src = "";
+  if (trailerAutoCloseTimer) {
+    clearTimeout(trailerAutoCloseTimer);
+    trailerAutoCloseTimer = null;
+  }
+}
+
+function resetTrailerModalState() {
+  trailerModalEl.classList.add("hidden");
+  trailerModalEl.setAttribute("aria-hidden", "true");
+  trailerStatusEl.classList.remove("hidden");
+  trailerStatusEl.textContent = "読み込み中...";
+  trailerFrameEl.classList.add("hidden");
   trailerFrameEl.src = "";
 }
 
