@@ -495,8 +495,16 @@ async function openTrailerModal(item) {
     trailerFrameEl.src = trailerUrl;
     trailerStatusEl.classList.add("hidden");
     trailerFrameEl.classList.remove("hidden");
+    if (trailerAutoCloseTimer) {
+      clearTimeout(trailerAutoCloseTimer);
+      trailerAutoCloseTimer = null;
+    }
   } catch (error) {
     if (requestToken !== trailerRequestToken) return;
+    if (trailerAutoCloseTimer) {
+      clearTimeout(trailerAutoCloseTimer);
+      trailerAutoCloseTimer = null;
+    }
     trailerStatusEl.textContent = `再生エラー: ${String(error && error.message ? error.message : error)}`;
   }
 }
